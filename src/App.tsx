@@ -179,6 +179,17 @@ function fuzzyIncludes(haystack: string, needle: string) {
   return haystack.toLowerCase().includes(needle.trim().toLowerCase());
 }
 
+function findValueInCSVRow(row: Record<string, string>, possibleKeys: string[]): string {
+  const rowKeys = Object.keys(row);
+  for (const pKey of possibleKeys) {
+    const foundKey = rowKeys.find((rKey) => rKey.toLowerCase() === pKey.toLowerCase());
+    if (foundKey && row[foundKey]) {
+      return row[foundKey];
+    }
+  }
+  return "";
+}
+
 function parseSimpleCSV(text: string) {
   // very naive CSV: comma-separated, first row headers
   const rows = text.split(/\r?\n/).filter(Boolean);
@@ -314,7 +325,7 @@ function TopBar({ query, setQuery }: {
     <div className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="max-w-7xl mx-auto p-3 md:p-4 flex items-center gap-3">
         <div className="flex items-center gap-2 text-xl font-semibold">
-          <ListChecks className="h-5 w-5" /> Onboarding Dashboard
+          <img src="/logo.svg" alt="SalesMatter Logo" className="h-28 w-auto" />
         </div>
         <Separator orientation="vertical" className="mx-2 hidden md:block" />
         <div className="relative ml-auto w-full max-w-lg">
@@ -487,17 +498,32 @@ function LeadsTab({
   const onCSV = async (file: File) => {
     const text = await file.text();
     const rows = parseSimpleCSV(text);
-    const newLeads: Lead[] = rows.map((r) => ({
-      id: uuidv4(),
-      clientId: selectedClientId || clients[0]?.id || "",
-      name: r.name || r.Name || "Unknown",
-      title: r.title || r.Title || "",
-      company: r.company || r.Company || "",
-      email: r.email || r.Email || "",
-      linkedin: r.linkedin || r.LinkedIn || "",
-      website: r.website || r.Website || "",
-      templates: [],
-    }));
+    const newLeads: Lead[] = rows.map((r) => {
+      let name = findValueInCSVRow(r, ["Name", "Full Name"]);
+      if (!name) {
+        const firstName = findValueInCSVRow(r, ["First Name", "FirstName", "First"]);
+        const lastName = findValueInCSVRow(r, [
+          "Last Name",
+          "LastName",
+          "Second Name",
+          "Second",
+          "Last",
+        ]);
+        name = `${firstName} ${lastName}`.trim();
+      }
+
+      return {
+        id: uuidv4(),
+        clientId: selectedClientId || clients[0]?.id || "",
+        name: name || "Unknown",
+        company: findValueInCSVRow(r, ["Company Name", "Company", "Organisation", "Organization"]),
+        website: findValueInCSVRow(r, ["Company URL", "Website", "URL"]),
+        linkedin: findValueInCSVRow(r, ["Linkedin URL", "LinkedIn", "Linkedin"]),
+        title: findValueInCSVRow(r, ["Title", "Job Title", "Role"]),
+        email: findValueInCSVRow(r, ["Email", "E-mail", "Email Address"]),
+        templates: [],
+      };
+    });
     addLeads(newLeads);
   };
 
